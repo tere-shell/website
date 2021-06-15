@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -e
+set -o pipefail
+
+function maybe_build_guide () {
+    if [ -e static/guide ]; then
+	return
+    fi
+
+    if ! command -v nix >/dev/null; then
+	# must use single-user nix install mode, as the Cloudflare Pages build environment doesn't have systemd
+	sudo install -d -m755 -o "$(id -u)" -g "$(id -g)" /nix
+	curl -L https://nixos.org/nix/install | sh
+    fi
+    
+    rm -rf temp/guide
+    install -d -m0700 temp/guide
+    curl --location --max-redirs 10 --max-time 30 https://api.github.com/repos/tere-shell/tere/tarball/HEAD | tar -C temp/guide -xz
+    for d in temp/guide/tere-shell-tere-*; do
+	(
+	    cd "$d"
+	    nix-shell --run 'mdbook build'
+	)
+	mv -- ./"$d"/target/book/html static/guide
+	return
+    done
+}
+
+maybe_build_guide
+zola build
